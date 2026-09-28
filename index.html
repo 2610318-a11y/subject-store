@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>수업 기록장</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 40px 20px;
+      background-color: #f4f6fb;
+      color: #222;
+      font-family: Arial, "Noto Sans KR", sans-serif;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+      text-align: center;
+    }
+
+    .description {
+      margin-bottom: 30px;
+      color: #666;
+      text-align: center;
+    }
+
+    .input-box,
+    .record-box {
+      margin-bottom: 25px;
+      padding: 25px;
+      border-radius: 15px;
+      background-color: white;
+      box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    label {
+      display: block;
+      margin-top: 15px;
+      margin-bottom: 7px;
+      font-weight: bold;
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 16px;
+    }
+
+    input:focus,
+    textarea:focus {
+      border-color: #4f46e5;
+      outline: none;
+    }
+
+    textarea {
+      min-height: 130px;
+      resize: vertical;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    button {
+      padding: 11px 18px;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .save-button {
+      flex: 1;
+      background-color: #4f46e5;
+      color: white;
+    }
+
+    .save-button:hover {
+      background-color: #3730a3;
+    }
+
+    .cancel-button {
+      display: none;
+      background-color: #e5e7eb;
+      color: #333;
+    }
+
+    .record {
+      margin-top: 15px;
+      padding: 18px;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+    }
+
+    .record-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 15px;
+    }
+
+    .subject {
+      color: #4f46e5;
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    .page {
+      margin-left: 8px;
+      color: #666;
+    }
+
+    .content {
+      margin-top: 13px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+
+    .record-buttons {
+      display: flex;
+      gap: 6px;
+    }
+
+    .edit-button {
+      background-color: #e0e7ff;
+      color: #3730a3;
+    }
+
+    .delete-button {
+      background-color: #fee2e2;
+      color: #dc2626;
+    }
+
+    .empty-message {
+      padding: 35px 0;
+      color: #888;
+      text-align: center;
+    }
+
+    @media (max-width: 600px) {
+      .record-top {
+        flex-direction: column;
+      }
+
+      .record-buttons button {
+        flex: 1;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="container">
+    <h1>나의 수업 기록장</h1>
+    <p class="description">
+      과목별 수업 진도와 학습 내용을 기록해 보세요.
+    </p>
+
+    <section class="input-box">
+      <h2 id="formTitle">수업 내용 입력</h2>
+
+      <form id="classForm">
+        <label for="subject">과목명</label>
+        <input
+          type="text"
+          id="subject"
+          placeholder="예: 수학"
+          required
+        >
+
+        <label for="page">페이지</label>
+        <input
+          type="text"
+          id="page"
+          placeholder="예: 42쪽 또는 42~45쪽"
+          required
+        >
+
+        <label for="classContent">수업 내용</label>
+        <textarea
+          id="classContent"
+          placeholder="오늘 배운 내용을 입력하세요."
+          required
+        ></textarea>
+
+        <div class="button-group">
+          <button type="submit" class="save-button" id="saveButton">
+            기록 저장
+          </button>
+
+          <button type="button" class="cancel-button" id="cancelButton">
+            수정 취소
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <section class="record-box">
+      <h2>저장된 수업 기록</h2>
+      <div id="recordList"></div>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById("classForm");
+    const subjectInput = document.getElementById("subject");
+    const pageInput = document.getElementById("page");
+    const contentInput = document.getElementById("classContent");
+    const recordList = document.getElementById("recordList");
+    const formTitle = document.getElementById("formTitle");
+    const saveButton = document.getElementById("saveButton");
+    const cancelButton = document.getElementById("cancelButton");
+
+    // 브라우저에 저장된 기록 불러오기
+    let records =
+      JSON.parse(localStorage.getItem("classRecords")) || [];
+
+    let editingIndex = null;
+
+    // 기록을 화면에 표시하는 함수
+    function displayRecords() {
+      recordList.innerHTML = "";
+
+      if (records.length === 0) {
+        const emptyMessage = document.createElement("p");
+        emptyMessage.className = "empty-message";
+        emptyMessage.textContent = "아직 저장된 수업 기록이 없습니다.";
+        recordList.appendChild(emptyMessage);
+        return;
+      }
+
+      records.forEach(function (record, index) {
+        const recordElement = document.createElement("article");
+        recordElement.className = "record";
+
+        const recordTop = document.createElement("div");
+        recordTop.className = "record-top";
+
+        const information = document.createElement("div");
+
+        const subject = document.createElement("span");
+        subject.className = "subject";
+        subject.textContent = record.subject;
+
+        const page = document.createElement("span");
+        page.className = "page";
+        page.textContent = record.page;
+
+        information.appendChild(subject);
+        information.appendChild(page);
+
+        const buttonArea = document.createElement("div");
+        buttonArea.className = "record-buttons";
+
+        const editButton = document.createElement("button");
+        editButton.className = "edit-button";
+        editButton.textContent = "수정";
+        editButton.addEventListener("click", function () {
+          editRecord(index);
+        });
+
+        const deleteButton = document.createElement("button");
+        deleteButton.className = "delete-button";
+        deleteButton.textContent = "삭제";
+        deleteButton.addEventListener("click", function () {
+          deleteRecord(index);
+        });
+
+        buttonArea.appendChild(editButton);
+        buttonArea.appendChild(deleteButton);
+
+        recordTop.appendChild(information);
+        recordTop.appendChild(buttonArea);
+
+        const content = document.createElement("div");
+        content.className = "content";
+        content.textContent = record.content;
+
+        recordElement.appendChild(recordTop);
+        recordElement.appendChild(content);
+
+        recordList.appendChild(recordElement);
+      });
+    }
+
+    // 입력한 기록 저장
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+
+      const newRecord = {
+        subject: subjectInput.value.trim(),
+        page: pageInput.value.trim(),
+        content: contentInput.value.trim()
+      };
+
+      if (editingIndex === null) {
+        records.unshift(newRecord);
+      } else {
+        records[editingIndex] = newRecord;
+      }
+
+      saveToBrowser();
+      resetForm();
+      displayRecords();
+    });
+
+    // 기록 수정
+    function editRecord(index) {
+      editingIndex = index;
+
+      subjectInput.value = records[index].subject;
+      pageInput.value = records[index].page;
+      contentInput.value = records[index].content;
+
+      formTitle.textContent = "수업 기록 수정";
+      saveButton.textContent = "수정 내용 저장";
+      cancelButton.style.display = "block";
+
+      subjectInput.focus();
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
+    }
+
+    // 기록 삭제
+    function deleteRecord(index) {
+      const shouldDelete = confirm(
+        records[index].subject + " 기록을 삭제할까요?"
+      );
+
+      if (!shouldDelete) {
+        return;
+      }
+
+      records.splice(index, 1);
+      saveToBrowser();
+      resetForm();
+      displayRecords();
+    }
+
+    // 수정 취소
+    cancelButton.addEventListener("click", function () {
+      resetForm();
+    });
+
+    // 입력창 초기화
+    function resetForm() {
+      editingIndex = null;
+      form.reset();
+
+      formTitle.textContent = "수업 내용 입력";
+      saveButton.textContent = "기록 저장";
+      cancelButton.style.display = "none";
+    }
+
+    // 기록을 브라우저에 저장
+    function saveToBrowser() {
+      localStorage.setItem(
+        "classRecords",
+        JSON.stringify(records)
+      );
+    }
+
+    // 페이지가 열리면 기존 기록 표시
+    displayRecords();
+  </script>
+</body>
+</html>
